@@ -20,22 +20,19 @@ class TrainData(Dataset):
     def __getitem__(self, idx):
         label, content, eventtemplate = self.data[idx]
         
-        # 编码输入内容
         input_text = content
         encoding = self.tokenizer(input_text, truncation=True, padding="max_length", max_length=self.max_length, return_tensors="pt")
         
-        # 编码标签
-        label_text = eventtemplate  # 假设标签是字符串形式
+        label_text = eventtemplate 
         label_encoding = self.tokenizer(label_text, truncation=True, padding="max_length", max_length=2, return_tensors="pt")
 
-        # 返回编码后的内容和标签
         return {
-            'input_ids': encoding['input_ids'].squeeze(0),  # 去除多余的批次维度
+            'input_ids': encoding['input_ids'].squeeze(0), 
             'attention_mask': encoding['attention_mask'].squeeze(0),
             'labels': label_encoding['input_ids'].squeeze(0)
         }
 
-def load_parsed_bgl(): ##这个函数用于提取训练模版解析的数据集
+def load_parsed_bgl(): 
     parsed_bgl = pd.read_csv('/home/jpy/graduation_design_final/BGL/BGL_2k.log_structured.csv')
     parsed_bgl["Label"] = parsed_bgl["Label"].apply(lambda x: int(x != "-"))
     labels = parsed_bgl['Label'].tolist()
@@ -58,10 +55,8 @@ traindata=TrainData(train_data_tuple,tokenizer)
 dataloader=DataLoader(traindata,5,shuffle=True)
 
 optimizer = AdamW(model.parameters(), lr=5e-4)
-# 损失函数
 loss_fn = torch.nn.CrossEntropyLoss()
 
-# 训练过程
 epochs = 30
 loop = tqdm(total=epochs)
 
@@ -70,13 +65,10 @@ for epoch in range(epochs):
         input_ids = batch['input_ids'].to('cuda')
         attention_mask = batch['attention_mask'].to('cuda')
         labels = batch['labels'].to('cuda')
-        # 清除梯度
         optimizer.zero_grad()
-        # 前向传播
         outputs = model(input_ids=input_ids,attention_mask=attention_mask,labels=labels)
-        logits = outputs.logits  # 获取 logits
+        logits = outputs.logits
         result_loss = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
-        # 反向传播和优化
         result_loss.backward()
         optimizer.step()
     loop.update(1)

@@ -75,7 +75,6 @@ eval_data = {
     "f1_score": score
 }
 
-# 写入文件
 with open('/root/autodl-tmp/V100/eval.json', 'w') as f:
     json.dump(eval_data, f, indent=4)
 

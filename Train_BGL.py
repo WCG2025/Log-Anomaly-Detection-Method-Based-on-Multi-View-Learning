@@ -12,7 +12,6 @@ from transformers import T5TokenizerFast, T5ForConditionalGeneration, AdamW, get
 from torch.utils.data import DataLoader, Dataset as TorchDataset
 from tqdm.auto import tqdm
 
-# 参数解析
 parser = argparse.ArgumentParser()
 parser.add_argument("--batch_size", type=int, default=5)
 parser.add_argument("--num_epochs", type=int, default=40)
@@ -21,7 +20,6 @@ parser.add_argument("--learning_rate", type=float, default=5e-4)
 parser.add_argument("--validation", type=str, default="validation")
 args = parser.parse_args()
 
-# 设置环境和随机种子
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 use_cuda = True
 seed = 41
@@ -32,30 +30,26 @@ num_epochs = args.num_epochs
 model_name = "flan-t5-base"
 pretrainedmodel_path = "/root/autodl-tmp/Graduation/Flan-T5"
 
-# 数据预处理
 def prepare_data():
-    # 读取训练集、验证集和测试集
     dataset_path = "/root/autodl-tmp/Graduation/BGL_test_data/test.json"
     raw_dataset = pd.read_json(dataset_path)
     raw_dataset = raw_dataset.drop(columns=['instruction'])
-    raw_dataset = raw_dataset.applymap(str)  # 转换为字符串
+    raw_dataset = raw_dataset.applymap(str)  
     new_column_names = {'input': 'Content', 'output': 'EventTemplate'}
     raw_dataset.rename(columns=new_column_names, inplace=True)
 
-    # 同样的处理方式处理验证集和测试集
     validation_path = "/root/autodl-tmp/Graduation/BGL_validation_data/validation.json"
     validation_dataset = pd.read_json(validation_path)
     validation_dataset = validation_dataset.drop(columns=['instruction'])
-    validation_dataset = validation_dataset.applymap(str)  # 转换为字符串
+    validation_dataset = validation_dataset.applymap(str)
     validation_dataset.rename(columns=new_column_names, inplace=True)
 
     test_path = "/root/autodl-tmp/Graduation/BGL_test_data/test.json"
     test_dataset = pd.read_json(test_path)
     test_dataset = test_dataset.drop(columns=['instruction'])
-    test_dataset = test_dataset.applymap(str)  # 转换为字符串
+    test_dataset = test_dataset.applymap(str)
     test_dataset.rename(columns=new_column_names, inplace=True)
 
-    # 转换为 Huggingface Dataset 格式
     train_val_test = {
         "train": Dataset.from_dict(raw_dataset),
         "validation": Dataset.from_dict(validation_dataset),
@@ -63,7 +57,6 @@ def prepare_data():
     }
     return train_val_test
 
-# 创建用于 DataLoader 的 Dataset 类
 class LogDataset(TorchDataset):
     def __init__(self, data, tokenizer, max_length=256):
         self.data = data
@@ -86,13 +79,11 @@ class LogDataset(TorchDataset):
             "labels": labels.squeeze()
         }
 
-# 加载预训练模型和分词器
 new_words = ["<*>", "{", "}", "<", "\\"]
 tokenizer = T5TokenizerFast.from_pretrained(pretrainedmodel_path)
 tokenizer.add_tokens(new_tokens=new_words)
 model = T5ForConditionalGeneration.from_pretrained(pretrainedmodel_path)
 model.to('cuda')
-# 准备数据
 dataset = prepare_data()
 train_dataset = LogDataset(dataset["train"], tokenizer)
 validation_dataset = LogDataset(dataset["validation"], tokenizer)
@@ -102,7 +93,6 @@ train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True
 validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size,shuffle=False)
 test_dataloader = DataLoader(test_dataset, batch_size=batch_size,shuffle=False)
 
-# 优化器和学习率调度器设置
 no_decay = ["bias", "LayerNorm.weight"]
 optimizer_grouped_parameters = [
         {
@@ -126,7 +116,6 @@ optimizer = AdamW(optimizer_grouped_parameters, lr=lr)
 num_training_steps = num_epochs * len(train_dataloader)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
 
-# 训练循环
 output_dir = "/root/autodl-tmp/Graduation/BGL_Flan_T5"
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -152,14 +141,12 @@ for epoch in range(num_epochs):
         attention_mask = batch["attention_mask"].to("cuda" if use_cuda else "cpu")
         labels = batch["labels"].to("cuda" if use_cuda else "cpu")
 
-        # 前向传播
         outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         loss.backward()
 
         tot_loss += loss.item()
 
-        # 优化器步骤
         optimizer.step()
         optimizer.zero_grad()
         scheduler.step()
@@ -168,7 +155,6 @@ for epoch in range(num_epochs):
 
     print(f"Epoch {epoch}, avergeLoss: {tot_loss / (step + 1)}")
 
-    # 验证阶段
     model.eval()
     if args.validation == "validation" and (epoch + 1) % 5 == 0:
         correct_preds = 0
@@ -231,7 +217,6 @@ for epoch in range(num_epochs):
 
 
 
-# 测试阶段
 # if args.validation != "validation":
 #     model.save_pretrained(output_dir)
 #     tokenizer.save_pretrained(output_dir)
